@@ -1,3 +1,4 @@
+
 import { 
   Category, 
   JuiceItem, 
@@ -12,6 +13,21 @@ import {
 } from '@/types/models';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+
+// Helper function to transform database address to model address
+const transformDbAddressToModel = (dbAddress: any): Address => {
+  return {
+    id: dbAddress.id,
+    userId: dbAddress.user_id,
+    name: dbAddress.name,
+    phone: dbAddress.phone,
+    address: dbAddress.address,
+    city: dbAddress.city,
+    state: dbAddress.state,
+    pincode: dbAddress.pincode,
+    isDefault: dbAddress.is_default || false
+  };
+};
 
 // Categories API
 export const getCategories = async (): Promise<Category[]> => {
@@ -526,17 +542,7 @@ export const getUserOrders = async (userId: string): Promise<Order[]> => {
       // Map address data if address exists
       let addressData: Address | undefined;
       if (order.addresses) {
-        addressData = {
-          id: order.addresses.id,
-          userId: order.addresses.user_id,
-          name: order.addresses.name,
-          phone: order.addresses.phone,
-          address: order.addresses.address,
-          city: order.addresses.city,
-          state: order.addresses.state,
-          pincode: order.addresses.pincode,
-          isDefault: order.addresses.is_default || false
-        };
+        addressData = transformDbAddressToModel(order.addresses);
       }
       
       return {
@@ -605,17 +611,7 @@ export const getOrderById = async (id: string): Promise<Order | undefined> => {
   // Map address data if address exists
   let addressData: Address | undefined;
   if (order.addresses) {
-    addressData = {
-      id: order.addresses.id,
-      userId: order.addresses.user_id,
-      name: order.addresses.name,
-      phone: order.addresses.phone,
-      address: order.addresses.address,
-      city: order.addresses.city,
-      state: order.addresses.state,
-      pincode: order.addresses.pincode,
-      isDefault: order.addresses.is_default || false
-    };
+    addressData = transformDbAddressToModel(order.addresses);
   }
   
   return {
@@ -679,17 +675,7 @@ export const getAllOrders = async (): Promise<Order[]> => {
       // Map address data if address exists
       let addressData: Address | undefined;
       if (order.addresses) {
-        addressData = {
-          id: order.addresses.id,
-          userId: order.addresses.user_id,
-          name: order.addresses.name,
-          phone: order.addresses.phone,
-          address: order.addresses.address,
-          city: order.addresses.city,
-          state: order.addresses.state,
-          pincode: order.addresses.pincode,
-          isDefault: order.addresses.is_default || false
-        };
+        addressData = transformDbAddressToModel(order.addresses);
       }
       
       return {
@@ -719,8 +705,8 @@ export const createOrder = async (userId: string, cart: Cart, address?: Address)
     p_user_id: userId,
     p_total_amount: cart.items.reduce((sum, item) => sum + (item.price * item.quantity), 0),
     p_order_type: cart.type,
-    p_address_id: address?.id,
-    p_table_no: cart.tableNo
+    p_address_id: address?.id || null,
+    p_table_no: cart.tableNo || null
   });
   
   if (error) {
@@ -793,17 +779,7 @@ export const createOrder = async (userId: string, cart: Cart, address?: Address)
   // Map address data if address exists
   let addressData: Address | undefined;
   if (order.addresses) {
-    addressData = {
-      id: order.addresses.id,
-      userId: order.addresses.user_id,
-      name: order.addresses.name,
-      phone: order.addresses.phone,
-      address: order.addresses.address,
-      city: order.addresses.city,
-      state: order.addresses.state,
-      pincode: order.addresses.pincode,
-      isDefault: order.addresses.is_default || false
-    };
+    addressData = transformDbAddressToModel(order.addresses);
   }
   
   toast.success('Order placed successfully!');
@@ -863,6 +839,12 @@ export const updateOrderStatus = async (orderId: string, status: OrderStatus): P
       }))
     : [];
   
+  // Map address data if address exists
+  let addressData: Address | undefined;
+  if (data.addresses) {
+    addressData = transformDbAddressToModel(data.addresses);
+  }
+  
   return {
     id: data.id,
     userId: data.user_id,
@@ -871,7 +853,7 @@ export const updateOrderStatus = async (orderId: string, status: OrderStatus): P
     orderType: data.order_type as OrderType,
     status: data.status as OrderStatus,
     paymentId: data.payment_id,
-    address: data.addresses,
+    address: addressData,
     tableNo: data.table_no,
     createdAt: data.created_at,
     updatedAt: data.updated_at

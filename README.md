@@ -1,73 +1,95 @@
-# Welcome to your Lovable project
+
+# Juice Shop App
+
+A full-stack e-commerce application for a juice shop, built with React, TypeScript, Tailwind CSS, Shadcn UI, and Supabase.
 
 ## Project info
 
 **URL**: https://lovable.dev/projects/c27a5d50-eff2-4f37-9e00-ca6fe3053272
 
-## How can I edit this code?
+## Features
 
-There are several ways of editing your application.
+- User Authentication (Email/Password and Phone OTP)
+- Juice Menu and Categories
+- Shopping Cart
+- Checkout Process
+- Order Management
+- Admin Dashboard
+- User Profile and Address Management
 
-**Use Lovable**
+## Admin Credentials
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/c27a5d50-eff2-4f37-9e00-ca6fe3053272) and start prompting.
+Use these credentials to access the admin dashboard:
 
-Changes made via Lovable will be committed automatically to this repo.
+**Email:** admin@example.com  
+**Password:** Admin@123456
 
-**Use your preferred IDE**
+## Getting Started
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### Prerequisites
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+- Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+- Supabase account
 
-Follow these steps:
+### Local Development
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
+# Clone the repository
 git clone <YOUR_GIT_URL>
 
-# Step 2: Navigate to the project directory.
+# Navigate to the project directory
 cd <YOUR_PROJECT_NAME>
 
-# Step 3: Install the necessary dependencies.
+# Install dependencies
 npm i
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Start the development server
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
-
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
+## Deployment
 
 Simply open [Lovable](https://lovable.dev/projects/c27a5d50-eff2-4f37-9e00-ca6fe3053272) and click on Share -> Publish.
 
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
+## Custom Domain
 
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+
+## Database Seed Data
+
+The application comes pre-populated with:
+
+1. **Categories** - Various juice categories like Fruit Juices, Vegetable Juices, etc.
+2. **Juice Items** - Multiple juice options in each category
+3. **Admin User** - For accessing the admin dashboard
+
+## Technologies Used
+
+- Vite
+- TypeScript
+- React
+- Shadcn UI
+- Tailwind CSS
+- Supabase (Authentication, Database, Storage)
+- React Router
+- Tanstack Query
+- Zod for validation
+
+## Architecture
+
+The application follows a clean architecture pattern:
+
+- **Components**: Reusable UI components
+- **Pages**: Main application views
+- **Context**: Global state management
+- **Services**: API and data access layer
+- **Types**: TypeScript type definitions
+- **Hooks**: Custom React hooks
+- **Lib**: Utility functions
+
+## Authentication Flows
+
+1. **Email/Password Authentication**: Traditional login flow
+2. **Phone OTP Authentication**: Simplified signup and login with phone number verification

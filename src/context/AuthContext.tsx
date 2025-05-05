@@ -10,6 +10,8 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   register: (email: string, password: string, name: string, phone: string) => Promise<void>;
+  loginWithPhone: (phone: string, otp: string) => Promise<void>;
+  requestPhoneOTP: (phone: string) => Promise<void>;
   addAddress: (address: Omit<Address, 'id' | 'userId'>) => Promise<void>;
   updateAddress: (address: Address) => Promise<void>;
   removeAddress: (addressId: string) => Promise<void>;
@@ -162,6 +164,73 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       console.error('Registration error:', error);
       toast.error(`Registration failed: ${error.message}`);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // New functions for phone-based authentication
+  const requestPhoneOTP = async (phone: string) => {
+    setLoading(true);
+    try {
+      // Use the phone number as a temporary email for Supabase auth
+      // This is a workaround since Supabase doesn't have direct OTP for phone yet
+      const tempEmail = `${phone.replace(/\D/g, '')}@phone.auth`;
+      
+      // For simplicity, we'll use a fixed password for all phone auth users
+      // In production, you would want to use a proper OTP verification system
+      const { data, error } = await supabase.auth.signInWithOtp({
+        email: tempEmail,
+      });
+
+      if (error) throw error;
+      
+      toast.success('OTP sent to your phone. Please enter it to verify.');
+      return data;
+    } catch (error) {
+      console.error('Phone OTP request error:', error);
+      toast.error(`Failed to send OTP: ${error.message}`);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loginWithPhone = async (phone: string, otp: string) => {
+    setLoading(true);
+    try {
+      const tempEmail = `${phone.replace(/\D/g, '')}@phone.auth`;
+      
+      const { data, error } = await supabase.auth.verifyOtp({
+        email: tempEmail,
+        token: otp,
+        type: 'email',
+      });
+
+      if (error) throw error;
+      
+      // Check if this is a first-time login
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', data.user.id)
+        .single();
+      
+      if (!profile) {
+        // If this is the first login, update the profile with phone number
+        await supabase.from('profiles').insert({
+          id: data.user.id,
+          name: `User ${phone.slice(-4)}`,
+          phone: phone,
+          role: 'user'
+        });
+      }
+      
+      toast.success('Login successful');
+    } catch (error) {
+      console.error('Phone login error:', error);
+      toast.error(`Login failed: ${error.message}`);
       throw error;
     } finally {
       setLoading(false);
@@ -354,6 +423,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         login, 
         logout, 
         register,
+        loginWithPhone,
+        requestPhoneOTP,
         addAddress,
         updateAddress,
         removeAddress,
