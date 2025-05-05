@@ -41,6 +41,13 @@ const MenuManagement: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   
+  // Check for admin access first - moved before any other hooks
+  useEffect(() => {
+    if (!user || user.role !== 'admin') {
+      navigate('/');
+    }
+  }, [user, navigate]);
+  
   const [juices, setJuices] = useState<JuiceItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,12 +95,6 @@ const MenuManagement: React.FC = () => {
     isActive: true
   });
   
-  // Redirect non-admin users
-  if (!user || user.role !== 'admin') {
-    navigate('/');
-    return null;
-  }
-  
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -112,8 +113,11 @@ const MenuManagement: React.FC = () => {
       }
     };
     
-    fetchData();
-  }, []);
+    // Only fetch data if user is admin
+    if (user && user.role === 'admin') {
+      fetchData();
+    }
+  }, [user]);
   
   // Filter juices based on search and category filter
   const filteredJuices = juices.filter(juice => {
@@ -334,6 +338,11 @@ const MenuManagement: React.FC = () => {
         </div>
       </div>
     );
+  }
+  
+  // Guard against rendering if user is not admin
+  if (!user || user.role !== 'admin') {
+    return null;
   }
   
   return (
