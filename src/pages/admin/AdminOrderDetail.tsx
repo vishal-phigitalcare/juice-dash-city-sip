@@ -91,7 +91,7 @@ const AdminOrderDetail: React.FC = () => {
       case OrderStatus.PREPARING:
         return OrderStatus.READY;
       case OrderStatus.READY:
-        return order?.orderType === OrderStatus.DELIVERY ? OrderStatus.OUT_FOR_DELIVERY : OrderStatus.COMPLETED;
+        return order?.orderType === OrderType.DELIVERY ? OrderStatus.OUT_FOR_DELIVERY : OrderStatus.COMPLETED;
       case OrderStatus.OUT_FOR_DELIVERY:
         return OrderStatus.DELIVERED;
       case OrderStatus.DELIVERED:
