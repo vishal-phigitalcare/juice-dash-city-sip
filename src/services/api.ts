@@ -923,7 +923,7 @@ export const getDashboardStats = async (): Promise<DashboardStats> => {
 // Razorpay API
 export const createRazorpayOrder = async (amount: number): Promise<{ id: string, amount: number, currency: string }> => {
   try {
-    // Use string template for URL construction to avoid type errors
+    // Use window.location.origin directly without string interpolation
     const apiUrl = `${window.location.origin}/api/razorpay-payment`;
     
     const response = await fetch(apiUrl, {

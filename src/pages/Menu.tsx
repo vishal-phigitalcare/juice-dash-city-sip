@@ -7,6 +7,7 @@ import { JuiceItem, Category } from '@/types/models';
 import { getJuices, getCategories, getJuicesByCategory } from '@/services/api';
 import { Input } from '@/components/ui/input';
 import { Search } from 'lucide-react';
+import { enablePublicAccess } from '@/utils/enablePublicAccess';
 
 const Menu: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -17,10 +18,14 @@ const Menu: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<string>(categoryParam || 'all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [error, setError] = useState<string | null>(null);
   
   useEffect(() => {
     const fetchData = async () => {
       try {
+        // Try to enable public access first
+        await enablePublicAccess();
+        
         const categoriesData = await getCategories();
         setCategories(categoriesData.filter(cat => cat.isActive));
 
@@ -32,8 +37,10 @@ const Menu: React.FC = () => {
           const juicesData = await getJuices();
           setJuices(juicesData.filter(juice => juice.isAvailable));
         }
+        setError(null);
       } catch (error) {
         console.error('Error fetching data:', error);
+        setError('Failed to load menu items. Please try again later.');
       } finally {
         setLoading(false);
       }
@@ -98,30 +105,39 @@ const Menu: React.FC = () => {
         />
       </div>
       
-      <Tabs defaultValue={activeTab} onValueChange={handleTabChange} className="mb-8">
-        <TabsList className="mb-6 flex overflow-x-auto pb-2 space-x-2">
-          <TabsTrigger value="all">All</TabsTrigger>
-          {categories.map(category => (
-            <TabsTrigger key={category.id} value={category.id}>
-              {category.name}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-        
-        <TabsContent value={activeTab} className="mt-0">
-          {filteredJuices.length > 0 ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
-              {filteredJuices.map(juice => (
-                <JuiceCard key={juice.id} juice={juice} />
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-12">
-              <p className="text-gray-500 text-lg">No juices found. Please try another search or category.</p>
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
+      {error ? (
+        <div className="text-center py-12">
+          <p className="text-red-500 text-lg mb-4">{error}</p>
+          <p className="text-gray-600">
+            Please try signing in or contact support if the problem persists.
+          </p>
+        </div>
+      ) : (
+        <Tabs defaultValue={activeTab} onValueChange={handleTabChange} className="mb-8">
+          <TabsList className="mb-6 flex overflow-x-auto pb-2 space-x-2">
+            <TabsTrigger value="all">All</TabsTrigger>
+            {categories.map(category => (
+              <TabsTrigger key={category.id} value={category.id}>
+                {category.name}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+          
+          <TabsContent value={activeTab} className="mt-0">
+            {filteredJuices.length > 0 ? (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
+                {filteredJuices.map(juice => (
+                  <JuiceCard key={juice.id} juice={juice} />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <p className="text-gray-500 text-lg">No juices found. Please try another search or category.</p>
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
+      )}
     </div>
   );
 };

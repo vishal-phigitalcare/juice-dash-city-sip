@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, Address } from '@/types/models';
 import { toast } from 'sonner';
@@ -177,7 +178,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // This is a workaround since Supabase doesn't have direct OTP for phone yet
       const tempEmail = `${phone.replace(/\D/g, '')}@phone.auth`;
       
-      // Send OTP to the user's phone
+      // Send OTP to the user's phone - Make sure to discard the return value to match void return type
       await supabase.auth.signInWithOtp({
         email: tempEmail,
       });

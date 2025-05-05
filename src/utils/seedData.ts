@@ -1,7 +1,6 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Category, JuiceItem, CupSize } from '@/types/models';
+import { Category, CupSize } from '@/types/models';
 
 // Sample categories
 const sampleCategories: Omit<Category, 'id'>[] = [
@@ -27,22 +26,21 @@ const sampleCategories: Omit<Category, 'id'>[] = [
   }
 ];
 
-// Define interface for a juice item without id to prevent excessive type depth
+// Define standalone interfaces to prevent recursive type issues
+interface JuiceVariantItem {
+  size: CupSize;
+  price: number;
+  isAvailable: boolean;
+}
+
 interface JuiceItemWithoutId {
   name: string;
   description: string;
   image: string;
   categoryId: string;
-  variants: JuiceVariant[];
+  variants: JuiceVariantItem[];
   isAvailable: boolean;
   isFeatured: boolean;
-}
-
-// Define JuiceVariant interface to avoid recursive imports
-interface JuiceVariant {
-  size: CupSize;
-  price: number;
-  isAvailable: boolean;
 }
 
 // Sample juice items - Fix the recursive type issue by explicitly defining the return types
