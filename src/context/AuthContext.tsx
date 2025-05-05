@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, Address } from '@/types/models';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 interface AuthContextType {
   user: User | null;
@@ -9,42 +10,11 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   register: (email: string, password: string, name: string, phone: string) => Promise<void>;
-  addAddress: (address: Omit<Address, 'id' | 'userId'>) => void;
-  updateAddress: (address: Address) => void;
-  removeAddress: (addressId: string) => void;
-  setDefaultAddress: (addressId: string) => void;
+  addAddress: (address: Omit<Address, 'id' | 'userId'>) => Promise<void>;
+  updateAddress: (address: Address) => Promise<void>;
+  removeAddress: (addressId: string) => Promise<void>;
+  setDefaultAddress: (addressId: string) => Promise<void>;
 }
-
-// Mock data for demo purposes
-const mockUser: User = {
-  id: 'user-1',
-  email: 'user@example.com',
-  name: 'Test User',
-  phone: '9876543210',
-  role: 'user',
-  addresses: [
-    {
-      id: 'addr-1',
-      userId: 'user-1',
-      name: 'Home',
-      phone: '9876543210',
-      address: '123 Main St, Apt 4B',
-      city: 'Bhopal',
-      state: 'Madhya Pradesh',
-      pincode: '462001',
-      isDefault: true
-    }
-  ]
-};
-
-const mockAdminUser: User = {
-  id: 'admin-1',
-  email: 'admin@example.com',
-  name: 'Admin User',
-  phone: '9876543210',
-  role: 'admin',
-  addresses: []
-};
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -52,153 +22,302 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Check for existing session on load
   useEffect(() => {
-    // Check for saved auth in localStorage
-    const savedUser = localStorage.getItem('user');
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
-    }
-    setLoading(false);
+    const checkSession = async () => {
+      setLoading(true);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session) {
+          await fetchUserProfile(session.user.id);
+        }
+      } catch (error) {
+        console.error('Session check error:', error);
+        toast.error('Failed to restore session');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkSession();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (event === 'SIGNED_IN' && session) {
+          await fetchUserProfile(session.user.id);
+        } else if (event === 'SIGNED_OUT') {
+          setUser(null);
+        }
+      }
+    );
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
+
+  // Fetch user profile data including addresses
+  const fetchUserProfile = async (userId: string) => {
+    try {
+      // Get user profile
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (profileError) throw profileError;
+
+      // Get user addresses
+      const { data: addresses, error: addressesError } = await supabase
+        .from('addresses')
+        .select('*')
+        .eq('user_id', userId);
+
+      if (addressesError) throw addressesError;
+
+      // Construct user object
+      const userData: User = {
+        id: profile.id,
+        email: '', // Email is not stored in profiles table for security
+        name: profile.name,
+        phone: profile.phone || '',
+        role: profile.role,
+        addresses: addresses || []
+      };
+
+      setUser(userData);
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+      toast.error('Failed to load user profile');
+    }
+  };
 
   const login = async (email: string, password: string) => {
     setLoading(true);
     try {
-      // Mock login - in a real app this would call an API
-      if (email === 'user@example.com' && password === 'password') {
-        setUser(mockUser);
-        localStorage.setItem('user', JSON.stringify(mockUser));
-        toast.success('Login successful');
-      } else if (email === 'admin@example.com' && password === 'password') {
-        setUser(mockAdminUser);
-        localStorage.setItem('user', JSON.stringify(mockAdminUser));
-        toast.success('Admin login successful');
-      } else {
-        throw new Error('Invalid credentials');
-      }
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) throw error;
+      
+      toast.success('Login successful');
     } catch (error) {
-      toast.error('Login failed: ' + (error as Error).message);
+      console.error('Login error:', error);
+      toast.error(`Login failed: ${error.message}`);
       throw error;
     } finally {
       setLoading(false);
     }
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('user');
-    toast.info('Logged out');
+  const logout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      
+      setUser(null);
+      toast.info('Logged out');
+    } catch (error) {
+      console.error('Logout error:', error);
+      toast.error(`Logout failed: ${error.message}`);
+    }
   };
 
   const register = async (email: string, password: string, name: string, phone: string) => {
     setLoading(true);
     try {
-      // Mock registration - in a real app this would call an API
-      const newUser: User = {
-        ...mockUser,
-        id: 'user-' + Date.now(),
+      // Register user with Supabase Auth
+      const { data, error } = await supabase.auth.signUp({
         email,
-        name,
-        phone,
-        addresses: []
-      };
-      setUser(newUser);
-      localStorage.setItem('user', JSON.stringify(newUser));
+        password,
+        options: {
+          data: {
+            name,
+            phone,
+          },
+        },
+      });
+
+      if (error) throw error;
+      
       toast.success('Registration successful');
     } catch (error) {
-      toast.error('Registration failed: ' + (error as Error).message);
+      console.error('Registration error:', error);
+      toast.error(`Registration failed: ${error.message}`);
       throw error;
     } finally {
       setLoading(false);
     }
   };
 
-  const addAddress = (addressData: Omit<Address, 'id' | 'userId'>) => {
-    if (!user) return;
-
-    const newAddress: Address = {
-      ...addressData,
-      id: 'addr-' + Date.now(),
-      userId: user.id,
-      isDefault: user.addresses.length === 0 ? true : addressData.isDefault
-    };
-
-    let updatedAddresses: Address[];
-    
-    if (newAddress.isDefault) {
-      // If this is set as default, update all other addresses
-      updatedAddresses = user.addresses.map(addr => ({
-        ...addr,
-        isDefault: false
-      }));
-      updatedAddresses.push(newAddress);
-    } else {
-      updatedAddresses = [...user.addresses, newAddress];
+  const addAddress = async (addressData: Omit<Address, 'id' | 'userId'>) => {
+    if (!user) {
+      toast.error('You must be logged in to add an address');
+      return;
     }
 
-    const updatedUser = { ...user, addresses: updatedAddresses };
-    setUser(updatedUser);
-    localStorage.setItem('user', JSON.stringify(updatedUser));
-    toast.success('Address added');
-  };
-
-  const updateAddress = (address: Address) => {
-    if (!user) return;
-
-    let updatedAddresses: Address[];
-    
-    if (address.isDefault) {
+    try {
       // If this is set as default, update all other addresses
-      updatedAddresses = user.addresses.map(addr => ({
-        ...addr,
-        isDefault: addr.id === address.id
-      }));
-    } else {
-      updatedAddresses = user.addresses.map(addr => 
-        addr.id === address.id ? address : addr
-      );
-    }
-
-    const updatedUser = { ...user, addresses: updatedAddresses };
-    setUser(updatedUser);
-    localStorage.setItem('user', JSON.stringify(updatedUser));
-    toast.success('Address updated');
-  };
-
-  const removeAddress = (addressId: string) => {
-    if (!user) return;
-
-    let removedDefault = false;
-    const filteredAddresses = user.addresses.filter(addr => {
-      if (addr.id === addressId && addr.isDefault) {
-        removedDefault = true;
+      if (addressData.isDefault) {
+        await supabase
+          .from('addresses')
+          .update({ is_default: false })
+          .eq('user_id', user.id);
       }
-      return addr.id !== addressId;
-    });
 
-    // If we removed the default address and have other addresses, make the first one default
-    if (removedDefault && filteredAddresses.length > 0) {
-      filteredAddresses[0].isDefault = true;
+      // Insert the new address
+      const { data, error } = await supabase
+        .from('addresses')
+        .insert({
+          user_id: user.id,
+          name: addressData.name,
+          phone: addressData.phone,
+          address: addressData.address,
+          city: addressData.city,
+          state: addressData.state,
+          pincode: addressData.pincode,
+          is_default: addressData.isDefault
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Update local state
+      setUser(prevUser => {
+        if (!prevUser) return null;
+        
+        return {
+          ...prevUser,
+          addresses: [...prevUser.addresses, data as unknown as Address]
+        };
+      });
+
+      toast.success('Address added');
+    } catch (error) {
+      console.error('Add address error:', error);
+      toast.error(`Failed to add address: ${error.message}`);
     }
-
-    const updatedUser = { ...user, addresses: filteredAddresses };
-    setUser(updatedUser);
-    localStorage.setItem('user', JSON.stringify(updatedUser));
-    toast.success('Address removed');
   };
 
-  const setDefaultAddress = (addressId: string) => {
-    if (!user) return;
+  const updateAddress = async (address: Address) => {
+    if (!user) {
+      toast.error('You must be logged in to update an address');
+      return;
+    }
 
-    const updatedAddresses = user.addresses.map(addr => ({
-      ...addr,
-      isDefault: addr.id === addressId
-    }));
+    try {
+      // If this is set as default, update all other addresses
+      if (address.isDefault) {
+        await supabase
+          .from('addresses')
+          .update({ is_default: false })
+          .eq('user_id', user.id);
+      }
 
-    const updatedUser = { ...user, addresses: updatedAddresses };
-    setUser(updatedUser);
-    localStorage.setItem('user', JSON.stringify(updatedUser));
-    toast.success('Default address updated');
+      // Update the address
+      const { error } = await supabase
+        .from('addresses')
+        .update({
+          name: address.name,
+          phone: address.phone,
+          address: address.address,
+          city: address.city,
+          state: address.state,
+          pincode: address.pincode,
+          is_default: address.isDefault
+        })
+        .eq('id', address.id)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      // Refresh user data to get updated addresses
+      await fetchUserProfile(user.id);
+      
+      toast.success('Address updated');
+    } catch (error) {
+      console.error('Update address error:', error);
+      toast.error(`Failed to update address: ${error.message}`);
+    }
+  };
+
+  const removeAddress = async (addressId: string) => {
+    if (!user) {
+      toast.error('You must be logged in to remove an address');
+      return;
+    }
+
+    try {
+      // Check if this is the default address
+      const addressToRemove = user.addresses.find(addr => addr.id === addressId);
+      
+      // Delete the address
+      const { error } = await supabase
+        .from('addresses')
+        .delete()
+        .eq('id', addressId)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      // If we deleted the default address and have other addresses, make the first one default
+      if (addressToRemove?.isDefault && user.addresses.length > 1) {
+        const firstAddressId = user.addresses.find(addr => addr.id !== addressId)?.id;
+        if (firstAddressId) {
+          await supabase
+            .from('addresses')
+            .update({ is_default: true })
+            .eq('id', firstAddressId)
+            .eq('user_id', user.id);
+        }
+      }
+
+      // Refresh user data to get updated addresses
+      await fetchUserProfile(user.id);
+      
+      toast.success('Address removed');
+    } catch (error) {
+      console.error('Remove address error:', error);
+      toast.error(`Failed to remove address: ${error.message}`);
+    }
+  };
+
+  const setDefaultAddress = async (addressId: string) => {
+    if (!user) {
+      toast.error('You must be logged in to set a default address');
+      return;
+    }
+
+    try {
+      // Update all addresses to not default
+      await supabase
+        .from('addresses')
+        .update({ is_default: false })
+        .eq('user_id', user.id);
+      
+      // Set the selected address as default
+      const { error } = await supabase
+        .from('addresses')
+        .update({ is_default: true })
+        .eq('id', addressId)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      // Refresh user data to get updated addresses
+      await fetchUserProfile(user.id);
+      
+      toast.success('Default address updated');
+    } catch (error) {
+      console.error('Set default address error:', error);
+      toast.error(`Failed to set default address: ${error.message}`);
+    }
   };
 
   return (

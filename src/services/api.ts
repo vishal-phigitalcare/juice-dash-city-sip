@@ -7,172 +7,755 @@ import {
   OrderType,
   Cart,
   Address,
-  DashboardStats
+  DashboardStats,
+  CupSize,
+  JuiceVariant
 } from '@/types/models';
-import { categories, juices, mockOrders, dashboardStats } from './mockData';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-
-// Simulate API delay
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Categories API
 export const getCategories = async (): Promise<Category[]> => {
-  await delay(500);
-  return categories;
+  const { data, error } = await supabase
+    .from('categories')
+    .select('*')
+    .order('name');
+  
+  if (error) {
+    console.error('Error fetching categories:', error);
+    toast.error('Failed to load categories');
+    throw error;
+  }
+  
+  return data || [];
 };
 
 export const getCategoryById = async (id: string): Promise<Category | undefined> => {
-  await delay(300);
-  return categories.find(category => category.id === id);
+  const { data, error } = await supabase
+    .from('categories')
+    .select('*')
+    .eq('id', id)
+    .single();
+  
+  if (error) {
+    if (error.code !== 'PGRST116') { // No rows returned
+      console.error('Error fetching category:', error);
+      toast.error('Failed to load category');
+      throw error;
+    }
+    return undefined;
+  }
+  
+  return data;
 };
 
 export const createCategory = async (category: Omit<Category, 'id'>): Promise<Category> => {
-  await delay(800);
-  const newCategory = {
-    ...category,
-    id: `cat-${Date.now()}`
-  };
-  categories.push(newCategory);
-  return newCategory;
+  const { data, error } = await supabase
+    .from('categories')
+    .insert(category)
+    .select()
+    .single();
+  
+  if (error) {
+    console.error('Error creating category:', error);
+    toast.error('Failed to create category');
+    throw error;
+  }
+  
+  return data;
 };
 
 export const updateCategory = async (category: Category): Promise<Category> => {
-  await delay(800);
-  const index = categories.findIndex(c => c.id === category.id);
-  if (index !== -1) {
-    categories[index] = category;
-    return category;
+  const { data, error } = await supabase
+    .from('categories')
+    .update({
+      name: category.name,
+      image: category.image,
+      is_active: category.isActive
+    })
+    .eq('id', category.id)
+    .select()
+    .single();
+  
+  if (error) {
+    console.error('Error updating category:', error);
+    toast.error('Failed to update category');
+    throw error;
   }
-  throw new Error('Category not found');
+  
+  return data;
 };
 
 export const deleteCategory = async (id: string): Promise<void> => {
-  await delay(800);
-  const index = categories.findIndex(c => c.id === id);
-  if (index !== -1) {
-    categories.splice(index, 1);
-    return;
+  const { error } = await supabase
+    .from('categories')
+    .delete()
+    .eq('id', id);
+  
+  if (error) {
+    console.error('Error deleting category:', error);
+    toast.error('Failed to delete category');
+    throw error;
   }
-  throw new Error('Category not found');
 };
 
 // Juice Items API
 export const getJuices = async (): Promise<JuiceItem[]> => {
-  await delay(700);
-  return juices;
+  // First get all juice items
+  const { data: juiceItems, error: juiceError } = await supabase
+    .from('juice_items')
+    .select('*')
+    .order('name');
+  
+  if (juiceError) {
+    console.error('Error fetching juices:', juiceError);
+    toast.error('Failed to load juices');
+    throw juiceError;
+  }
+  
+  // Then get all variants for these items
+  if (juiceItems && juiceItems.length > 0) {
+    const { data: variants, error: variantsError } = await supabase
+      .from('juice_variants')
+      .select('*')
+      .in('juice_id', juiceItems.map(juice => juice.id));
+    
+    if (variantsError) {
+      console.error('Error fetching juice variants:', variantsError);
+      toast.error('Failed to load juice variants');
+      throw variantsError;
+    }
+    
+    // Map variants to their juice items
+    const juicesWithVariants: JuiceItem[] = juiceItems.map(juice => {
+      const juiceVariants = variants
+        ? variants
+            .filter(v => v.juice_id === juice.id)
+            .map(v => ({
+              size: v.size as CupSize,
+              price: v.price,
+              isAvailable: v.is_available
+            }))
+        : [];
+      
+      return {
+        id: juice.id,
+        name: juice.name,
+        description: juice.description || '',
+        image: juice.image,
+        categoryId: juice.category_id || '',
+        variants: juiceVariants,
+        isAvailable: juice.is_available,
+        isFeatured: juice.is_featured
+      };
+    });
+    
+    return juicesWithVariants;
+  }
+  
+  return [];
 };
 
 export const getJuiceById = async (id: string): Promise<JuiceItem | undefined> => {
-  await delay(300);
-  return juices.find(juice => juice.id === id);
+  // First get the juice item
+  const { data: juice, error: juiceError } = await supabase
+    .from('juice_items')
+    .select('*')
+    .eq('id', id)
+    .single();
+  
+  if (juiceError) {
+    if (juiceError.code !== 'PGRST116') { // No rows returned
+      console.error('Error fetching juice:', juiceError);
+      toast.error('Failed to load juice');
+      throw juiceError;
+    }
+    return undefined;
+  }
+  
+  // Then get the variants
+  const { data: variants, error: variantsError } = await supabase
+    .from('juice_variants')
+    .select('*')
+    .eq('juice_id', id);
+  
+  if (variantsError) {
+    console.error('Error fetching juice variants:', variantsError);
+    toast.error('Failed to load juice variants');
+    throw variantsError;
+  }
+  
+  // Map to our model
+  const juiceVariants: JuiceVariant[] = variants
+    ? variants.map(v => ({
+        size: v.size as CupSize,
+        price: v.price,
+        isAvailable: v.is_available
+      }))
+    : [];
+  
+  return {
+    id: juice.id,
+    name: juice.name,
+    description: juice.description || '',
+    image: juice.image,
+    categoryId: juice.category_id || '',
+    variants: juiceVariants,
+    isAvailable: juice.is_available,
+    isFeatured: juice.is_featured
+  };
 };
 
 export const getJuicesByCategory = async (categoryId: string): Promise<JuiceItem[]> => {
-  await delay(500);
-  return juices.filter(juice => juice.categoryId === categoryId && juice.isAvailable);
+  // First get juice items in this category
+  const { data: juiceItems, error: juiceError } = await supabase
+    .from('juice_items')
+    .select('*')
+    .eq('category_id', categoryId)
+    .eq('is_available', true)
+    .order('name');
+  
+  if (juiceError) {
+    console.error('Error fetching juices by category:', juiceError);
+    toast.error('Failed to load juices');
+    throw juiceError;
+  }
+  
+  // Then get all variants for these items
+  if (juiceItems && juiceItems.length > 0) {
+    const { data: variants, error: variantsError } = await supabase
+      .from('juice_variants')
+      .select('*')
+      .in('juice_id', juiceItems.map(juice => juice.id));
+    
+    if (variantsError) {
+      console.error('Error fetching juice variants:', variantsError);
+      toast.error('Failed to load juice variants');
+      throw variantsError;
+    }
+    
+    // Map variants to their juice items
+    const juicesWithVariants: JuiceItem[] = juiceItems.map(juice => {
+      const juiceVariants = variants
+        ? variants
+            .filter(v => v.juice_id === juice.id)
+            .map(v => ({
+              size: v.size as CupSize,
+              price: v.price,
+              isAvailable: v.is_available
+            }))
+        : [];
+      
+      return {
+        id: juice.id,
+        name: juice.name,
+        description: juice.description || '',
+        image: juice.image,
+        categoryId: juice.category_id || '',
+        variants: juiceVariants,
+        isAvailable: juice.is_available,
+        isFeatured: juice.is_featured
+      };
+    });
+    
+    return juicesWithVariants;
+  }
+  
+  return [];
 };
 
 export const getFeaturedJuices = async (): Promise<JuiceItem[]> => {
-  await delay(500);
-  return juices.filter(juice => juice.isFeatured && juice.isAvailable);
-};
-
-export const createJuice = async (juice: Omit<JuiceItem, 'id'>): Promise<JuiceItem> => {
-  await delay(1000);
-  const newJuice = {
-    ...juice,
-    id: `juice-${Date.now()}`
-  };
-  juices.push(newJuice);
-  return newJuice;
-};
-
-export const updateJuice = async (juice: JuiceItem): Promise<JuiceItem> => {
-  await delay(1000);
-  const index = juices.findIndex(j => j.id === juice.id);
-  if (index !== -1) {
-    juices[index] = juice;
-    return juice;
+  // First get featured juice items
+  const { data: juiceItems, error: juiceError } = await supabase
+    .from('juice_items')
+    .select('*')
+    .eq('is_featured', true)
+    .eq('is_available', true)
+    .order('name');
+  
+  if (juiceError) {
+    console.error('Error fetching featured juices:', juiceError);
+    toast.error('Failed to load featured juices');
+    throw juiceError;
   }
-  throw new Error('Juice not found');
-};
-
-export const deleteJuice = async (id: string): Promise<void> => {
-  await delay(800);
-  const index = juices.findIndex(j => j.id === id);
-  if (index !== -1) {
-    juices.splice(index, 1);
-    return;
+  
+  // Then get all variants for these items
+  if (juiceItems && juiceItems.length > 0) {
+    const { data: variants, error: variantsError } = await supabase
+      .from('juice_variants')
+      .select('*')
+      .in('juice_id', juiceItems.map(juice => juice.id));
+    
+    if (variantsError) {
+      console.error('Error fetching juice variants:', variantsError);
+      toast.error('Failed to load juice variants');
+      throw variantsError;
+    }
+    
+    // Map variants to their juice items
+    const juicesWithVariants: JuiceItem[] = juiceItems.map(juice => {
+      const juiceVariants = variants
+        ? variants
+            .filter(v => v.juice_id === juice.id)
+            .map(v => ({
+              size: v.size as CupSize,
+              price: v.price,
+              isAvailable: v.is_available
+            }))
+        : [];
+      
+      return {
+        id: juice.id,
+        name: juice.name,
+        description: juice.description || '',
+        image: juice.image,
+        categoryId: juice.category_id || '',
+        variants: juiceVariants,
+        isAvailable: juice.is_available,
+        isFeatured: juice.is_featured
+      };
+    });
+    
+    return juicesWithVariants;
   }
-  throw new Error('Juice not found');
+  
+  return [];
 };
 
 // Orders API
 export const getUserOrders = async (userId: string): Promise<Order[]> => {
-  await delay(800);
-  return mockOrders.filter(order => order.userId === userId);
+  const { data: orders, error: ordersError } = await supabase
+    .from('orders')
+    .select(`
+      *,
+      addresses:address_id (*)
+    `)
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+  
+  if (ordersError) {
+    console.error('Error fetching user orders:', ordersError);
+    toast.error('Failed to load orders');
+    throw ordersError;
+  }
+  
+  // Get order items for all orders
+  if (orders && orders.length > 0) {
+    const { data: items, error: itemsError } = await supabase
+      .from('order_items')
+      .select('*')
+      .in('order_id', orders.map(order => order.id));
+    
+    if (itemsError) {
+      console.error('Error fetching order items:', itemsError);
+      toast.error('Failed to load order items');
+      throw itemsError;
+    }
+    
+    // Map items to their orders
+    const ordersWithItems: Order[] = orders.map(order => {
+      const orderItems = items
+        ? items
+            .filter(item => item.order_id === order.id)
+            .map(item => ({
+              juiceId: item.juice_id,
+              juiceName: item.juice_name,
+              image: '',  // We don't store images in order_items
+              size: item.size as CupSize,
+              price: item.price,
+              quantity: item.quantity
+            }))
+        : [];
+      
+      return {
+        id: order.id,
+        userId: order.user_id,
+        items: orderItems,
+        totalAmount: order.total_amount,
+        orderType: order.order_type as OrderType,
+        status: order.status as OrderStatus,
+        paymentId: order.payment_id,
+        address: order.addresses,
+        tableNo: order.table_no,
+        createdAt: order.created_at,
+        updatedAt: order.updated_at
+      };
+    });
+    
+    return ordersWithItems;
+  }
+  
+  return [];
 };
 
 export const getOrderById = async (id: string): Promise<Order | undefined> => {
-  await delay(300);
-  return mockOrders.find(order => order.id === id);
+  const { data: order, error: orderError } = await supabase
+    .from('orders')
+    .select(`
+      *,
+      addresses:address_id (*)
+    `)
+    .eq('id', id)
+    .single();
+  
+  if (orderError) {
+    if (orderError.code !== 'PGRST116') { // No rows returned
+      console.error('Error fetching order:', orderError);
+      toast.error('Failed to load order');
+      throw orderError;
+    }
+    return undefined;
+  }
+  
+  // Get order items
+  const { data: items, error: itemsError } = await supabase
+    .from('order_items')
+    .select('*')
+    .eq('order_id', id);
+  
+  if (itemsError) {
+    console.error('Error fetching order items:', itemsError);
+    toast.error('Failed to load order items');
+    throw itemsError;
+  }
+  
+  const orderItems = items
+    ? items.map(item => ({
+        juiceId: item.juice_id,
+        juiceName: item.juice_name,
+        image: '',  // We don't store images in order_items
+        size: item.size as CupSize,
+        price: item.price,
+        quantity: item.quantity
+      }))
+    : [];
+  
+  return {
+    id: order.id,
+    userId: order.user_id,
+    items: orderItems,
+    totalAmount: order.total_amount,
+    orderType: order.order_type as OrderType,
+    status: order.status as OrderStatus,
+    paymentId: order.payment_id,
+    address: order.addresses,
+    tableNo: order.table_no,
+    createdAt: order.created_at,
+    updatedAt: order.updated_at
+  };
 };
 
 export const getAllOrders = async (): Promise<Order[]> => {
-  await delay(800);
-  return mockOrders;
+  const { data: orders, error: ordersError } = await supabase
+    .from('orders')
+    .select(`
+      *,
+      addresses:address_id (*)
+    `)
+    .order('created_at', { ascending: false });
+  
+  if (ordersError) {
+    console.error('Error fetching all orders:', ordersError);
+    toast.error('Failed to load orders');
+    throw ordersError;
+  }
+  
+  // Get order items for all orders
+  if (orders && orders.length > 0) {
+    const { data: items, error: itemsError } = await supabase
+      .from('order_items')
+      .select('*')
+      .in('order_id', orders.map(order => order.id));
+    
+    if (itemsError) {
+      console.error('Error fetching order items:', itemsError);
+      toast.error('Failed to load order items');
+      throw itemsError;
+    }
+    
+    // Map items to their orders
+    const ordersWithItems: Order[] = orders.map(order => {
+      const orderItems = items
+        ? items
+            .filter(item => item.order_id === order.id)
+            .map(item => ({
+              juiceId: item.juice_id,
+              juiceName: item.juice_name,
+              image: '',  // We don't store images in order_items
+              size: item.size as CupSize,
+              price: item.price,
+              quantity: item.quantity
+            }))
+        : [];
+      
+      return {
+        id: order.id,
+        userId: order.user_id,
+        items: orderItems,
+        totalAmount: order.total_amount,
+        orderType: order.order_type as OrderType,
+        status: order.status as OrderStatus,
+        paymentId: order.payment_id,
+        address: order.addresses,
+        tableNo: order.table_no,
+        createdAt: order.created_at,
+        updatedAt: order.updated_at
+      };
+    });
+    
+    return ordersWithItems;
+  }
+  
+  return [];
 };
 
 export const createOrder = async (userId: string, cart: Cart, address?: Address): Promise<Order> => {
-  await delay(1500);
+  // Start a transaction
+  const { data, error } = await supabase.rpc('create_order', {
+    p_user_id: userId,
+    p_total_amount: cart.items.reduce((sum, item) => sum + (item.price * item.quantity), 0),
+    p_order_type: cart.type,
+    p_address_id: address?.id,
+    p_table_no: cart.tableNo
+  });
   
-  const totalAmount = cart.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  if (error) {
+    console.error('Error creating order:', error);
+    toast.error('Failed to create order');
+    throw error;
+  }
   
-  const newOrder: Order = {
-    id: `order-${Date.now()}`,
-    userId,
-    items: cart.items,
-    totalAmount,
-    orderType: cart.type,
-    status: OrderStatus.PLACED,
-    paymentId: `pay-${Date.now()}`,
-    address: address,
-    tableNo: cart.tableNo,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  };
+  const orderId = data;
   
-  mockOrders.unshift(newOrder);
+  // Insert order items
+  for (const item of cart.items) {
+    const { error: itemError } = await supabase
+      .from('order_items')
+      .insert({
+        order_id: orderId,
+        juice_id: item.juiceId,
+        juice_name: item.juiceName,
+        size: item.size,
+        price: item.price,
+        quantity: item.quantity
+      });
+    
+    if (itemError) {
+      console.error('Error creating order item:', itemError);
+      toast.error('Failed to create order item');
+      throw itemError;
+    }
+  }
+  
+  // Get the created order
+  const { data: order, error: orderError } = await supabase
+    .from('orders')
+    .select(`
+      *,
+      addresses:address_id (*)
+    `)
+    .eq('id', orderId)
+    .single();
+  
+  if (orderError) {
+    console.error('Error fetching created order:', orderError);
+    toast.error('Failed to retrieve created order');
+    throw orderError;
+  }
+  
+  // Get order items
+  const { data: items, error: itemsError } = await supabase
+    .from('order_items')
+    .select('*')
+    .eq('order_id', orderId);
+  
+  if (itemsError) {
+    console.error('Error fetching order items:', itemsError);
+    toast.error('Failed to retrieve order items');
+    throw itemsError;
+  }
+  
+  const orderItems = items
+    ? items.map(item => ({
+        juiceId: item.juice_id,
+        juiceName: item.juice_name,
+        image: '',
+        size: item.size as CupSize,
+        price: item.price,
+        quantity: item.quantity
+      }))
+    : [];
+  
   toast.success('Order placed successfully!');
-  return newOrder;
+  
+  return {
+    id: order.id,
+    userId: order.user_id,
+    items: orderItems,
+    totalAmount: order.total_amount,
+    orderType: order.order_type as OrderType,
+    status: order.status as OrderStatus,
+    paymentId: order.payment_id,
+    address: order.addresses,
+    tableNo: order.table_no,
+    createdAt: order.created_at,
+    updatedAt: order.updated_at
+  };
 };
 
 export const updateOrderStatus = async (orderId: string, status: OrderStatus): Promise<Order> => {
-  await delay(500);
+  const { data, error } = await supabase
+    .from('orders')
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq('id', orderId)
+    .select(`
+      *,
+      addresses:address_id (*)
+    `)
+    .single();
   
-  const orderIndex = mockOrders.findIndex(order => order.id === orderId);
-  if (orderIndex === -1) {
-    throw new Error('Order not found');
+  if (error) {
+    console.error('Error updating order status:', error);
+    toast.error('Failed to update order status');
+    throw error;
   }
   
-  mockOrders[orderIndex] = {
-    ...mockOrders[orderIndex],
-    status,
-    updatedAt: new Date().toISOString()
-  };
+  // Get order items
+  const { data: items, error: itemsError } = await supabase
+    .from('order_items')
+    .select('*')
+    .eq('order_id', orderId);
   
-  return mockOrders[orderIndex];
+  if (itemsError) {
+    console.error('Error fetching order items:', itemsError);
+    toast.error('Failed to load order items');
+    throw itemsError;
+  }
+  
+  const orderItems = items
+    ? items.map(item => ({
+        juiceId: item.juice_id,
+        juiceName: item.juice_name,
+        image: '',
+        size: item.size as CupSize,
+        price: item.price,
+        quantity: item.quantity
+      }))
+    : [];
+  
+  return {
+    id: data.id,
+    userId: data.user_id,
+    items: orderItems,
+    totalAmount: data.total_amount,
+    orderType: data.order_type as OrderType,
+    status: data.status as OrderStatus,
+    paymentId: data.payment_id,
+    address: data.addresses,
+    tableNo: data.table_no,
+    createdAt: data.created_at,
+    updatedAt: data.updated_at
+  };
 };
 
 // Dashboard API
 export const getDashboardStats = async (): Promise<DashboardStats> => {
-  await delay(800);
-  return dashboardStats;
+  // Get total orders count
+  const { count: totalOrders, error: ordersError } = await supabase
+    .from('orders')
+    .select('*', { count: 'exact', head: true });
+  
+  if (ordersError) {
+    console.error('Error fetching total orders:', ordersError);
+    toast.error('Failed to fetch dashboard stats');
+    throw ordersError;
+  }
+  
+  // Get total earnings
+  const { data: earnings, error: earningsError } = await supabase
+    .from('orders')
+    .select('total_amount')
+    .in('status', ['delivered', 'completed']);
+  
+  if (earningsError) {
+    console.error('Error fetching earnings:', earningsError);
+    toast.error('Failed to fetch dashboard stats');
+    throw earningsError;
+  }
+  
+  const totalEarnings = earnings
+    ? earnings.reduce((sum, order) => sum + order.total_amount, 0)
+    : 0;
+  
+  // Get pending orders count
+  const { count: pendingOrders, error: pendingError } = await supabase
+    .from('orders')
+    .select('*', { count: 'exact', head: true })
+    .in('status', ['placed', 'confirmed', 'preparing', 'ready', 'out_for_delivery']);
+  
+  if (pendingError) {
+    console.error('Error fetching pending orders:', pendingError);
+    toast.error('Failed to fetch dashboard stats');
+    throw pendingError;
+  }
+  
+  // Get completed orders count
+  const { count: completedOrders, error: completedError } = await supabase
+    .from('orders')
+    .select('*', { count: 'exact', head: true })
+    .in('status', ['delivered', 'completed']);
+  
+  if (completedError) {
+    console.error('Error fetching completed orders:', completedError);
+    toast.error('Failed to fetch dashboard stats');
+    throw completedError;
+  }
+  
+  return {
+    totalOrders: totalOrders || 0,
+    totalEarnings: totalEarnings,
+    pendingOrders: pendingOrders || 0,
+    completedOrders: completedOrders || 0
+  };
 };
 
-// Mock payment gateway
+// Razorpay API
+export const createRazorpayOrder = async (amount: number): Promise<{ id: string, amount: number, currency: string }> => {
+  try {
+    const response = await fetch(`${window.location.origin}/api/razorpay-payment`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+      },
+      body: JSON.stringify({
+        amount,
+        currency: 'INR',
+        receiptId: `rcpt_${Date.now()}`
+      })
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to create Razorpay order');
+    }
+    
+    const { order } = await response.json();
+    return {
+      id: order.id,
+      amount: order.amount / 100, // Convert from paise to rupees
+      currency: order.currency
+    };
+  } catch (error) {
+    console.error('Error creating Razorpay order:', error);
+    toast.error(`Payment failed: ${error.message}`);
+    throw error;
+  }
+};
+
+// Mock payment gateway for testing
 export const processPayment = async (amount: number): Promise<{ success: boolean, paymentId: string }> => {
-  await delay(2000);
+  await new Promise(resolve => setTimeout(resolve, 2000));
   
   // Simulate a payment with 90% success rate
   const success = Math.random() < 0.9;
