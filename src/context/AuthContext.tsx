@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, Address } from '@/types/models';
 import { toast } from 'sonner';
@@ -170,24 +169,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // New functions for phone-based authentication
-  const requestPhoneOTP = async (phone: string) => {
+  // Updated function to match Promise<void> return type
+  const requestPhoneOTP = async (phone: string): Promise<void> => {
     setLoading(true);
     try {
       // Use the phone number as a temporary email for Supabase auth
       // This is a workaround since Supabase doesn't have direct OTP for phone yet
       const tempEmail = `${phone.replace(/\D/g, '')}@phone.auth`;
       
-      // For simplicity, we'll use a fixed password for all phone auth users
-      // In production, you would want to use a proper OTP verification system
-      const { data, error } = await supabase.auth.signInWithOtp({
+      // Send OTP to the user's phone
+      await supabase.auth.signInWithOtp({
         email: tempEmail,
       });
-
-      if (error) throw error;
       
       toast.success('OTP sent to your phone. Please enter it to verify.');
-      return data;
     } catch (error) {
       console.error('Phone OTP request error:', error);
       toast.error(`Failed to send OTP: ${error.message}`);

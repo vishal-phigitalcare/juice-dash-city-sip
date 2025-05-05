@@ -1,4 +1,3 @@
-
 import { 
   Category, 
   JuiceItem, 
@@ -924,7 +923,10 @@ export const getDashboardStats = async (): Promise<DashboardStats> => {
 // Razorpay API
 export const createRazorpayOrder = async (amount: number): Promise<{ id: string, amount: number, currency: string }> => {
   try {
-    const response = await fetch(`${window.location.origin}/api/razorpay-payment`, {
+    // Use string template for URL construction to avoid type errors
+    const apiUrl = `${window.location.origin}/api/razorpay-payment`;
+    
+    const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

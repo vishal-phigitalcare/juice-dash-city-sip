@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Category, JuiceItem, CupSize } from '@/types/models';
@@ -27,8 +26,11 @@ const sampleCategories: Omit<Category, 'id'>[] = [
   }
 ];
 
-// Sample juice items
-const getFruitJuices = (categoryId: string): Omit<JuiceItem, 'id'>[] => [
+// Create type-safe juice item functions without excessive depth
+type JuiceItemWithoutId = Omit<JuiceItem, 'id'>;
+
+// Sample juice items - Fix the recursive type issue by explicitly defining the return types
+const getFruitJuices = (categoryId: string): JuiceItemWithoutId[] => [
   {
     name: 'Orange Juice',
     description: 'Freshly squeezed orange juice full of vitamin C.',
@@ -70,7 +72,7 @@ const getFruitJuices = (categoryId: string): Omit<JuiceItem, 'id'>[] => [
   },
 ];
 
-const getVegetableJuices = (categoryId: string): Omit<JuiceItem, 'id'>[] => [
+const getVegetableJuices = (categoryId: string): JuiceItemWithoutId[] => [
   {
     name: 'Carrot Juice',
     description: 'Healthy carrot juice rich in vitamin A and antioxidants.',
@@ -99,7 +101,7 @@ const getVegetableJuices = (categoryId: string): Omit<JuiceItem, 'id'>[] => [
   },
 ];
 
-const getSmoothies = (categoryId: string): Omit<JuiceItem, 'id'>[] => [
+const getSmoothies = (categoryId: string): JuiceItemWithoutId[] => [
   {
     name: 'Berry Blast',
     description: 'A mix of strawberries, blueberries, and raspberries for a fruity delight.',
@@ -128,7 +130,7 @@ const getSmoothies = (categoryId: string): Omit<JuiceItem, 'id'>[] => [
   },
 ];
 
-const getDetoxDrinks = (categoryId: string): Omit<JuiceItem, 'id'>[] => [
+const getDetoxDrinks = (categoryId: string): JuiceItemWithoutId[] => [
   {
     name: 'Green Detox',
     description: 'A mix of spinach, cucumber, celery, and apple for a cleansing effect.',
@@ -260,7 +262,7 @@ const seedJuiceItems = async (categoryIds: string[]) => {
 };
 
 // Helper function to create a juice item with its variants
-const createJuiceItem = async (juice: Omit<JuiceItem, 'id'>) => {
+const createJuiceItem = async (juice: JuiceItemWithoutId) => {
   try {
     // Create the juice item
     const { data, error } = await supabase
