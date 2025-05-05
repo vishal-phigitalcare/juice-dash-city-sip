@@ -1,3 +1,4 @@
+
 import type { Config } from "tailwindcss";
 
 export default {
@@ -25,12 +26,30 @@ export default {
 				background: 'hsl(var(--background))',
 				foreground: 'hsl(var(--foreground))',
 				primary: {
-					DEFAULT: 'hsl(var(--primary))',
-					foreground: 'hsl(var(--primary-foreground))'
+					DEFAULT: '#4CAF50',
+					foreground: '#FFFFFF',
+					100: '#E8F5E9',
+					200: '#C8E6C9',
+					300: '#A5D6A7',
+					400: '#81C784',
+					500: '#4CAF50',
+					600: '#43A047',
+					700: '#388E3C',
+					800: '#2E7D32',
+					900: '#1B5E20',
 				},
 				secondary: {
-					DEFAULT: 'hsl(var(--secondary))',
-					foreground: 'hsl(var(--secondary-foreground))'
+					DEFAULT: '#FF9800',
+					foreground: '#FFFFFF',
+					100: '#FFF3E0',
+					200: '#FFE0B2',
+					300: '#FFCC80',
+					400: '#FFB74D',
+					500: '#FF9800',
+					600: '#FB8C00',
+					700: '#F57C00',
+					800: '#EF6C00',
+					900: '#E65100',
 				},
 				destructive: {
 					DEFAULT: 'hsl(var(--destructive))',
@@ -41,8 +60,8 @@ export default {
 					foreground: 'hsl(var(--muted-foreground))'
 				},
 				accent: {
-					DEFAULT: 'hsl(var(--accent))',
-					foreground: 'hsl(var(--accent-foreground))'
+					DEFAULT: '#8BC34A',
+					foreground: '#FFFFFF',
 				},
 				popover: {
 					DEFAULT: 'hsl(var(--popover))',
