@@ -1,4 +1,3 @@
-
 import { 
   Category, 
   JuiceItem, 
@@ -27,7 +26,15 @@ export const getCategories = async (): Promise<Category[]> => {
     throw error;
   }
   
-  return data || [];
+  // Map database fields to our model
+  const categories: Category[] = data?.map(cat => ({
+    id: cat.id,
+    name: cat.name,
+    image: cat.image,
+    isActive: cat.is_active || false
+  })) || [];
+  
+  return categories;
 };
 
 export const getCategoryById = async (id: string): Promise<Category | undefined> => {
@@ -46,13 +53,22 @@ export const getCategoryById = async (id: string): Promise<Category | undefined>
     return undefined;
   }
   
-  return data;
+  return {
+    id: data.id,
+    name: data.name,
+    image: data.image,
+    isActive: data.is_active || false
+  };
 };
 
 export const createCategory = async (category: Omit<Category, 'id'>): Promise<Category> => {
   const { data, error } = await supabase
     .from('categories')
-    .insert(category)
+    .insert({
+      name: category.name,
+      image: category.image,
+      is_active: category.isActive
+    })
     .select()
     .single();
   
@@ -62,7 +78,12 @@ export const createCategory = async (category: Omit<Category, 'id'>): Promise<Ca
     throw error;
   }
   
-  return data;
+  return {
+    id: data.id,
+    name: data.name,
+    image: data.image,
+    isActive: data.is_active || false
+  };
 };
 
 export const updateCategory = async (category: Category): Promise<Category> => {
@@ -83,7 +104,12 @@ export const updateCategory = async (category: Category): Promise<Category> => {
     throw error;
   }
   
-  return data;
+  return {
+    id: data.id,
+    name: data.name,
+    image: data.image,
+    isActive: data.is_active || false
+  };
 };
 
 export const deleteCategory = async (id: string): Promise<void> => {
@@ -322,6 +348,136 @@ export const getFeaturedJuices = async (): Promise<JuiceItem[]> => {
   return [];
 };
 
+// Add the missing CRUD operations for juice items
+export const createJuice = async (juice: Omit<JuiceItem, 'id'>): Promise<JuiceItem> => {
+  try {
+    // First create the juice item
+    const { data: juiceData, error: juiceError } = await supabase
+      .from('juice_items')
+      .insert({
+        name: juice.name,
+        description: juice.description,
+        image: juice.image,
+        category_id: juice.categoryId,
+        is_available: juice.isAvailable,
+        is_featured: juice.isFeatured
+      })
+      .select()
+      .single();
+    
+    if (juiceError) throw juiceError;
+    
+    // Then create variants for the juice
+    for (const variant of juice.variants) {
+      const { error: variantError } = await supabase
+        .from('juice_variants')
+        .insert({
+          juice_id: juiceData.id,
+          size: variant.size,
+          price: variant.price,
+          is_available: variant.isAvailable
+        });
+      
+      if (variantError) throw variantError;
+    }
+    
+    // Return the created juice with its variants
+    return {
+      id: juiceData.id,
+      name: juiceData.name,
+      description: juiceData.description || '',
+      image: juiceData.image,
+      categoryId: juiceData.category_id || '',
+      variants: juice.variants,
+      isAvailable: juiceData.is_available || true,
+      isFeatured: juiceData.is_featured || false
+    };
+  } catch (error) {
+    console.error('Error creating juice:', error);
+    toast.error('Failed to create juice');
+    throw error;
+  }
+};
+
+export const updateJuice = async (juice: JuiceItem): Promise<JuiceItem> => {
+  try {
+    // Update the juice item
+    const { error: juiceError } = await supabase
+      .from('juice_items')
+      .update({
+        name: juice.name,
+        description: juice.description,
+        image: juice.image,
+        category_id: juice.categoryId,
+        is_available: juice.isAvailable,
+        is_featured: juice.isFeatured
+      })
+      .eq('id', juice.id);
+    
+    if (juiceError) throw juiceError;
+    
+    // Update or create variants
+    for (const variant of juice.variants) {
+      // Check if variant exists
+      const { data: existingVariant, error: checkError } = await supabase
+        .from('juice_variants')
+        .select('id')
+        .eq('juice_id', juice.id)
+        .eq('size', variant.size)
+        .single();
+      
+      if (checkError && checkError.code !== 'PGRST116') throw checkError;
+      
+      if (existingVariant) {
+        // Update existing variant
+        const { error: updateError } = await supabase
+          .from('juice_variants')
+          .update({
+            price: variant.price,
+            is_available: variant.isAvailable
+          })
+          .eq('id', existingVariant.id);
+        
+        if (updateError) throw updateError;
+      } else {
+        // Create new variant
+        const { error: insertError } = await supabase
+          .from('juice_variants')
+          .insert({
+            juice_id: juice.id,
+            size: variant.size,
+            price: variant.price,
+            is_available: variant.isAvailable
+          });
+        
+        if (insertError) throw insertError;
+      }
+    }
+    
+    return juice;
+  } catch (error) {
+    console.error('Error updating juice:', error);
+    toast.error('Failed to update juice');
+    throw error;
+  }
+};
+
+export const deleteJuice = async (id: string): Promise<void> => {
+  try {
+    // Delete juice item (variants will be deleted by cascade)
+    const { error } = await supabase
+      .from('juice_items')
+      .delete()
+      .eq('id', id);
+    
+    if (error) throw error;
+  } catch (error) {
+    console.error('Error deleting juice:', error);
+    toast.error('Failed to delete juice');
+    throw error;
+  }
+};
+
 // Orders API
 export const getUserOrders = async (userId: string): Promise<Order[]> => {
   const { data: orders, error: ordersError } = await supabase
@@ -367,6 +523,22 @@ export const getUserOrders = async (userId: string): Promise<Order[]> => {
             }))
         : [];
       
+      // Map address data if address exists
+      let addressData: Address | undefined;
+      if (order.addresses) {
+        addressData = {
+          id: order.addresses.id,
+          userId: order.addresses.user_id,
+          name: order.addresses.name,
+          phone: order.addresses.phone,
+          address: order.addresses.address,
+          city: order.addresses.city,
+          state: order.addresses.state,
+          pincode: order.addresses.pincode,
+          isDefault: order.addresses.is_default || false
+        };
+      }
+      
       return {
         id: order.id,
         userId: order.user_id,
@@ -375,7 +547,7 @@ export const getUserOrders = async (userId: string): Promise<Order[]> => {
         orderType: order.order_type as OrderType,
         status: order.status as OrderStatus,
         paymentId: order.payment_id,
-        address: order.addresses,
+        address: addressData,
         tableNo: order.table_no,
         createdAt: order.created_at,
         updatedAt: order.updated_at
@@ -430,6 +602,22 @@ export const getOrderById = async (id: string): Promise<Order | undefined> => {
       }))
     : [];
   
+  // Map address data if address exists
+  let addressData: Address | undefined;
+  if (order.addresses) {
+    addressData = {
+      id: order.addresses.id,
+      userId: order.addresses.user_id,
+      name: order.addresses.name,
+      phone: order.addresses.phone,
+      address: order.addresses.address,
+      city: order.addresses.city,
+      state: order.addresses.state,
+      pincode: order.addresses.pincode,
+      isDefault: order.addresses.is_default || false
+    };
+  }
+  
   return {
     id: order.id,
     userId: order.user_id,
@@ -438,7 +626,7 @@ export const getOrderById = async (id: string): Promise<Order | undefined> => {
     orderType: order.order_type as OrderType,
     status: order.status as OrderStatus,
     paymentId: order.payment_id,
-    address: order.addresses,
+    address: addressData,
     tableNo: order.table_no,
     createdAt: order.created_at,
     updatedAt: order.updated_at
@@ -488,6 +676,22 @@ export const getAllOrders = async (): Promise<Order[]> => {
             }))
         : [];
       
+      // Map address data if address exists
+      let addressData: Address | undefined;
+      if (order.addresses) {
+        addressData = {
+          id: order.addresses.id,
+          userId: order.addresses.user_id,
+          name: order.addresses.name,
+          phone: order.addresses.phone,
+          address: order.addresses.address,
+          city: order.addresses.city,
+          state: order.addresses.state,
+          pincode: order.addresses.pincode,
+          isDefault: order.addresses.is_default || false
+        };
+      }
+      
       return {
         id: order.id,
         userId: order.user_id,
@@ -496,7 +700,7 @@ export const getAllOrders = async (): Promise<Order[]> => {
         orderType: order.order_type as OrderType,
         status: order.status as OrderStatus,
         paymentId: order.payment_id,
-        address: order.addresses,
+        address: addressData,
         tableNo: order.table_no,
         createdAt: order.created_at,
         updatedAt: order.updated_at
@@ -586,6 +790,22 @@ export const createOrder = async (userId: string, cart: Cart, address?: Address)
       }))
     : [];
   
+  // Map address data if address exists
+  let addressData: Address | undefined;
+  if (order.addresses) {
+    addressData = {
+      id: order.addresses.id,
+      userId: order.addresses.user_id,
+      name: order.addresses.name,
+      phone: order.addresses.phone,
+      address: order.addresses.address,
+      city: order.addresses.city,
+      state: order.addresses.state,
+      pincode: order.addresses.pincode,
+      isDefault: order.addresses.is_default || false
+    };
+  }
+  
   toast.success('Order placed successfully!');
   
   return {
@@ -596,7 +816,7 @@ export const createOrder = async (userId: string, cart: Cart, address?: Address)
     orderType: order.order_type as OrderType,
     status: order.status as OrderStatus,
     paymentId: order.payment_id,
-    address: order.addresses,
+    address: addressData,
     tableNo: order.table_no,
     createdAt: order.created_at,
     updatedAt: order.updated_at

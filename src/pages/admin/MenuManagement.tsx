@@ -32,7 +32,16 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Category, JuiceItem, CupSize, JuiceVariant } from '@/types/models';
-import { getCategories, getJuices, updateJuice, createJuice, deleteJuice, updateCategory, createCategory, deleteCategory } from '@/services/api';
+import { 
+  getCategories, 
+  getJuices, 
+  createCategory, 
+  updateCategory, 
+  deleteCategory,
+  createJuice,
+  updateJuice,
+  deleteJuice 
+} from '@/services/api';
 import { useAuth } from '@/context/AuthContext';
 import { Search, MoreVertical, Plus, Trash2, Edit } from 'lucide-react';
 import { toast } from 'sonner';

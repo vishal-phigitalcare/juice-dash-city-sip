@@ -71,12 +71,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (profileError) throw profileError;
 
       // Get user addresses
-      const { data: addresses, error: addressesError } = await supabase
+      const { data: addressesData, error: addressesError } = await supabase
         .from('addresses')
         .select('*')
         .eq('user_id', userId);
 
       if (addressesError) throw addressesError;
+
+      // Transform addresses to match our model
+      const addresses: Address[] = addressesData?.map(addr => ({
+        id: addr.id,
+        userId: addr.user_id,
+        name: addr.name,
+        phone: addr.phone,
+        address: addr.address,
+        city: addr.city,
+        state: addr.state,
+        pincode: addr.pincode,
+        isDefault: addr.is_default || false
+      })) || [];
 
       // Construct user object
       const userData: User = {
@@ -84,8 +97,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email: '', // Email is not stored in profiles table for security
         name: profile.name,
         phone: profile.phone || '',
-        role: profile.role,
-        addresses: addresses || []
+        role: profile.role as 'user' | 'admin',
+        addresses
       };
 
       setUser(userData);
@@ -188,13 +201,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (error) throw error;
 
+      // Create a properly formatted Address object
+      const newAddress: Address = {
+        id: data.id,
+        userId: data.user_id,
+        name: data.name,
+        phone: data.phone,
+        address: data.address,
+        city: data.city,
+        state: data.state,
+        pincode: data.pincode,
+        isDefault: data.is_default || false
+      };
+
       // Update local state
       setUser(prevUser => {
         if (!prevUser) return null;
         
         return {
           ...prevUser,
-          addresses: [...prevUser.addresses, data as unknown as Address]
+          addresses: [...prevUser.addresses, newAddress]
         };
       });
 
