@@ -23,6 +23,7 @@ const Menu: React.FC = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
+        setLoading(true);
         // Try to enable public access first
         await enablePublicAccess();
         
@@ -39,8 +40,10 @@ const Menu: React.FC = () => {
         }
         setError(null);
       } catch (error) {
-        console.error('Error fetching data:', error);
+        console.error('Error fetching menu data:', error);
         setError('Failed to load menu items. Please try again later.');
+        setJuices([]);
+        setCategories([]);
       } finally {
         setLoading(false);
       }

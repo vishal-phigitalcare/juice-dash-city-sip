@@ -1,3 +1,4 @@
+
 import { 
   Category, 
   JuiceItem, 
@@ -923,7 +924,7 @@ export const getDashboardStats = async (): Promise<DashboardStats> => {
 // Razorpay API
 export const createRazorpayOrder = async (amount: number): Promise<{ id: string, amount: number, currency: string }> => {
   try {
-    // Use window.location.origin directly without string interpolation
+    // Fix: Use template literal for URL instead of direct concatenation
     const apiUrl = `${window.location.origin}/api/razorpay-payment`;
     
     const response = await fetch(apiUrl, {

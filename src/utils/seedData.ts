@@ -43,7 +43,7 @@ interface JuiceItemWithoutId {
   isFeatured: boolean;
 }
 
-// Sample juice items - Fix the recursive type issue by explicitly defining the return types
+// Sample juice items - Fix the recursive type issue by using explicitly defined return types
 const getFruitJuices = (categoryId: string): JuiceItemWithoutId[] => [
   {
     name: 'Orange Juice',
